@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  FINANCE
+  DIRECTOR
+  ADMIN
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalStepStatus {
+  WAITING
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum NotificationType {
+  INVOICE_SUBMITTED
+  APPROVAL_REQUESTED
+  INVOICE_APPROVED
+  INVOICE_REJECTED
+  STEP_APPROVED
+  STEP_REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  passwordHash  String
+  role          Role      @default(EMPLOYEE)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  invoicesSubmitted Invoice[]          @relation("InvoiceSubmitter")
+  approvalSteps     InvoiceApproval[]  @relation("Approver")
+  activityLogs      ActivityLog[]
+  notifications     Notification[]
+}
+
+model ApprovalThreshold {
+  id          String   @id @default(cuid())
+  name        String
+  minAmount   Decimal  @db.Decimal(14, 2)
+  maxAmount   Decimal? @db.Decimal(14, 2)
+  currency    String   @default("EUR")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  levels   ApprovalLevel[]
+  invoices Invoice[]
+
+  @@index([minAmount, maxAmount])
+}
+
+model ApprovalLevel {
+  id          String   @id @default(cuid())
+  thresholdId String
+  threshold   ApprovalThreshold @relation(fields: [thresholdId], references: [id], onDelete: Cascade)
+  order       Int
+  role        Role
+
+  @@unique([thresholdId, order])
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String
+  vendorName    String
+  amount        Decimal       @db.Decimal(14, 2)
+  currency      String        @default("EUR")
+  issueDate     DateTime
+  dueDate       DateTime?
+  description   String?
+  fileUrl       String?
+  fileName      String?
+  status        InvoiceStatus @default(DRAFT)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  submittedById String
+  submittedBy   User   @relation("InvoiceSubmitter", fields: [submittedById], references: [id])
+
+  thresholdId String?
+  threshold   ApprovalThreshold? @relation(fields: [thresholdId], references: [id])
+
+  approvals    InvoiceApproval[]
+  activityLogs ActivityLog[]
+
+  @@index([status])
+  @@index([submittedById])
+}
+
+model InvoiceApproval {
+  id         String              @id @default(cuid())
+  invoiceId  String
+  invoice    Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  order      Int
+  role       Role
+  status     ApprovalStepStatus  @default(WAITING)
+  comment    String?
+  actedAt    DateTime?
+
+  approverId String?
+  approver   User? @relation("Approver", fields: [approverId], references: [id])
+
+  @@unique([invoiceId, order])
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@index([invoiceId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  message   String
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+}
