@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generátor zmluvy o výpožičke</title>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<style>
+  :root {
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --border: #d9dce1;
+    --text: #1f2430;
+    --muted: #667085;
+    --accent: #2454ff;
+    --accent-dark: #1a3fcc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px 16px 80px;
+  }
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    color: var(--muted);
+    margin-bottom: 24px;
+    font-size: 0.95rem;
+  }
+  fieldset {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px 20px;
+    margin-bottom: 18px;
+  }
+  legend {
+    font-weight: 600;
+    padding: 0 8px;
+    font-size: 1.02rem;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  @media (max-width: 640px) {
+    .row { grid-template-columns: 1fr; }
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin: 10px 0 4px;
+  }
+  input[type="text"],
+  input[type="date"],
+  input[type="number"],
+  select,
+  textarea {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+  }
+  textarea { resize: vertical; min-height: 70px; }
+  .party-type {
+    display: flex;
+    gap: 18px;
+    margin: 6px 0 4px;
+    flex-wrap: wrap;
+  }
+  .party-type label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .duration-type {
+    display: flex;
+    gap: 18px;
+    margin: 6px 0 4px;
+  }
+  .duration-type label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .hint {
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .actions {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    background: linear-gradient(to top, var(--bg) 70%, transparent);
+    padding: 14px 0 4px;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 18px;
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+  #previewBtn {
+    background: #fff;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  #pdfBtn {
+    background: var(--accent);
+    color: #fff;
+  }
+  #pdfBtn:hover { background: var(--accent-dark); }
+  #pdfBtn:disabled { opacity: 0.6; cursor: wait; }
+
+  .preview {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-top: 20px;
+    padding: 30px 36px;
+    display: none;
+  }
+  .preview.visible { display: block; }
+  .doc h2 { font-size: 1.25rem; text-align: center; margin: 0 0 4px; }
+  .doc .doc-sub { text-align: center; color: var(--muted); font-size: 0.85rem; margin-bottom: 22px; }
+  .doc h3 { font-size: 1rem; margin: 20px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  .doc p { line-height: 1.55; font-size: 0.92rem; margin: 6px 0; }
+  .doc .party-block { margin: 4px 0 10px; padding-left: 4px; }
+  .doc .sign-row { display: flex; justify-content: space-between; margin-top: 60px; }
+  .doc .sign-col { width: 42%; text-align: center; font-size: 0.9rem; }
+  .doc .sign-line { border-top: 1px solid #333; margin-top: 46px; padding-top: 4px; }
+
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Generátor zmluvy o výpožičke</h1>
+  <p class="subtitle">Univerzálny formulár podľa § 659 a nasl. Občianskeho zákonníka (zák. č. 40/1964 Zb.). Vyplňte polia a na konci exportujte hotovú zmluvu do PDF.</p>
+
+  <form id="contractForm">
+
+    <fieldset>
+      <legend>1. Požičiavateľ</legend>
+      <label>Typ osoby</label>
+      <div class="party-type">
+        <label><input type="radio" name="lenderType" value="fo" checked> Fyzická osoba</label>
+        <label><input type="radio" name="lenderType" value="foe"> Fyzická osoba – podnikateľ</label>
+        <label><input type="radio" name="lenderType" value="po"> Právnická osoba</label>
+      </div>
+
+      <div data-lender-block="fo">
+        <div class="row">
+          <div><label>Meno a priezvisko</label><input type="text" id="lender_fo_name" placeholder="Ján Novák"></div>
+          <div><label>Dátum narodenia</label><input type="date" id="lender_fo_dob"></div>
+        </div>
+        <label>Trvalý pobyt</label>
+        <input type="text" id="lender_fo_address" placeholder="Hlavná 1, 811 01 Bratislava">
+      </div>
+
+      <div data-lender-block="foe" style="display:none;">
+        <div class="row">
+          <div><label>Meno a priezvisko / obchodné meno</label><input type="text" id="lender_foe_name" placeholder="Ján Novák"></div>
+          <div><label>IČO</label><input type="text" id="lender_foe_ico" placeholder="12345678"></div>
+        </div>
+        <label>Miesto podnikania</label>
+        <input type="text" id="lender_foe_address" placeholder="Hlavná 1, 811 01 Bratislava">
+        <label>Zapísaný v (živnostenský register / iná evidencia)</label>
+        <input type="text" id="lender_foe_reg" placeholder="Okresný úrad Bratislava, č. živ. reg. 100-12345">
+      </div>
+
+      <div data-lender-block="po" style="display:none;">
+        <div class="row">
+          <div><label>Obchodné meno</label><input type="text" id="lender_po_name" placeholder="Firma s.r.o."></div>
+          <div><label>IČO</label><input type="text" id="lender_po_ico" placeholder="12345678"></div>
+        </div>
+        <label>Sídlo</label>
+        <input type="text" id="lender_po_address" placeholder="Hlavná 1, 811 01 Bratislava">
+        <div class="row">
+          <div><label>Zapísaná v</label><input type="text" id="lender_po_reg" placeholder="OR OS Bratislava I, oddiel Sro, vložka č. 12345/B"></div>
+          <div><label>Štatutárny zástupca</label><input type="text" id="lender_po_rep" placeholder="Ján Novák, konateľ"></div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. Vypožičiavateľ</legend>
+      <label>Typ osoby</label>
+      <div class="party-type">
+        <label><input type="radio" name="borrowerType" value="fo" checked> Fyzická osoba</label>
+        <label><input type="radio" name="borrowerType" value="foe"> Fyzická osoba – podnikateľ</label>
+        <label><input type="radio" name="borrowerType" value="po"> Právnická osoba</label>
+      </div>
+
+      <div data-borrower-block="fo">
+        <div class="row">
+          <div><label>Meno a priezvisko</label><input type="text" id="borrower_fo_name" placeholder="Peter Kováč"></div>
+          <div><label>Dátum narodenia</label><input type="date" id="borrower_fo_dob"></div>
+        </div>
+        <label>Trvalý pobyt</label>
+        <input type="text" id="borrower_fo_address" placeholder="Vedľajšia 5, 010 01 Žilina">
+      </div>
+
+      <div data-borrower-block="foe" style="display:none;">
+        <div class="row">
+          <div><label>Meno a priezvisko / obchodné meno</label><input type="text" id="borrower_foe_name" placeholder="Peter Kováč"></div>
+          <div><label>IČO</label><input type="text" id="borrower_foe_ico" placeholder="87654321"></div>
+        </div>
+        <label>Miesto podnikania</label>
+        <input type="text" id="borrower_foe_address" placeholder="Vedľajšia 5, 010 01 Žilina">
+        <label>Zapísaný v (živnostenský register / iná evidencia)</label>
+        <input type="text" id="borrower_foe_reg" placeholder="Okresný úrad Žilina, č. živ. reg. 500-98765">
+      </div>
+
+      <div data-borrower-block="po" style="display:none;">
+        <div class="row">
+          <div><label>Obchodné meno</label><input type="text" id="borrower_po_name" placeholder="Druhá firma a.s."></div>
+          <div><label>IČO</label><input type="text" id="borrower_po_ico" placeholder="87654321"></div>
+        </div>
+        <label>Sídlo</label>
+        <input type="text" id="borrower_po_address" placeholder="Vedľajšia 5, 010 01 Žilina">
+        <div class="row">
+          <div><label>Zapísaná v</label><input type="text" id="borrower_po_reg" placeholder="OR OS Žilina, oddiel Sa, vložka č. 6789/L"></div>
+          <div><label>Štatutárny zástupca</label><input type="text" id="borrower_po_rep" placeholder="Peter Kováč, predseda predstavenstva"></div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. Predmet výpožičky</legend>
+      <label>Popis veci (predmetu výpožičky)</label>
+      <textarea id="item_desc" placeholder="napr. Osobný automobil zn. Škoda Octavia, EČV BA-123AB, VIN TMBJJ...; alebo notebook Dell Latitude 5420, sériové č. ..."></textarea>
+      <label>Príslušenstvo odovzdané spolu s vecou (nepovinné)</label>
+      <input type="text" id="item_accessories" placeholder="napr. 2 kľúče, technický preukaz, nabíjačka">
+      <div class="row">
+        <div>
+          <label>Stav veci pri odovzdaní</label>
+          <input type="text" id="item_condition" placeholder="napr. bez viditeľného poškodenia, funkčná">
+        </div>
+        <div>
+          <label>Orientačná hodnota veci (nepovinné)</label>
+          <input type="text" id="item_value" placeholder="napr. 8 000 EUR">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>4. Doba a účel výpožičky</legend>
+      <label>Doba výpožičky</label>
+      <div class="duration-type">
+        <label><input type="radio" name="durationType" value="determinate" checked> Doba určitá</label>
+        <label><input type="radio" name="durationType" value="indeterminate"> Doba neurčitá</label>
+      </div>
+      <div class="row" id="durationDates">
+        <div><label>Dátum od</label><input type="date" id="date_from"></div>
+        <div><label>Dátum do</label><input type="date" id="date_to"></div>
+      </div>
+      <label>Účel užívania veci</label>
+      <input type="text" id="purpose" placeholder="napr. na súkromné účely, na pracovné cesty, na výkon podnikateľskej činnosti">
+      <label>Miesto odovzdania a vrátenia veci</label>
+      <input type="text" id="place_handover" placeholder="napr. Bratislava, Hlavná 1">
+    </fieldset>
+
+    <fieldset>
+      <legend>5. Ďalšie dojednania (nepovinné)</legend>
+      <label>Doplňujúce ustanovenia — pridajú sa ako samostatný článok zmluvy</label>
+      <textarea id="extra_terms" placeholder="napr. osobitné podmienky užívania, poistenie veci, spôsob riešenia sporov a pod."></textarea>
+    </fieldset>
+
+    <fieldset>
+      <legend>6. Podpis zmluvy</legend>
+      <div class="row">
+        <div><label>Počet vyhotovení zmluvy</label><input type="number" id="copies" value="2" min="1"></div>
+        <div><label>Miesto podpisu</label><input type="text" id="sign_place" placeholder="Bratislava"></div>
+      </div>
+      <label>Dátum podpisu</label>
+      <input type="date" id="sign_date">
+    </fieldset>
+
+  </form>
+
+  <div class="actions">
+    <button type="button" id="previewBtn">Zobraziť náhľad</button>
+    <button type="button" id="pdfBtn">Stiahnuť PDF</button>
+  </div>
+
+  <div class="preview" id="preview"></div>
+</div>
+
+<script>
+(function () {
+  function $(id) { return document.getElementById(id); }
+  function val(id) { var el = $(id); return el ? el.value.trim() : ""; }
+  function esc(s) {
+    return (s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function fmtDate(iso) {
+    if (!iso) return "";
+    var parts = iso.split("-");
+    if (parts.length !== 3) return iso;
+    return parts[2] + "." + parts[1] + "." + parts[0];
+  }
+  function today() {
+    var d = new Date();
+    var mm = String(d.getMonth() + 1).padStart(2, "0");
+    var dd = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + mm + "-" + dd;
+  }
+
+  $("sign_date").value = today();
+
+  // toggle party type blocks
+  function wirePartyToggle(name, prefix) {
+    var radios = document.querySelectorAll('input[name="' + name + '"]');
+    radios.forEach(function (r) {
+      r.addEventListener("change", function () {
+        ["fo", "foe", "po"].forEach(function (t) {
+          var block = document.querySelector('[data-' + prefix + '-block="' + t + '"]');
+          if (block) block.style.display = (r.value === t && r.checked) ? "" : "none";
+        });
+      });
+    });
+  }
+  wirePartyToggle("lenderType", "lender");
+  wirePartyToggle("borrowerType", "borrower");
+
+  // toggle duration dates
+  var durationRadios = document.querySelectorAll('input[name="durationType"]');
+  function updateDurationVisibility() {
+    var determinate = document.querySelector('input[name="durationType"]:checked').value === "determinate";
+    $("durationDates").style.display = determinate ? "" : "none";
+  }
+  durationRadios.forEach(function (r) { r.addEventListener("change", updateDurationVisibility); });
+  updateDurationVisibility();
+
+  function partyType(name) {
+    return document.querySelector('input[name="' + name + '"]:checked').value;
+  }
+
+  function partyData(role) {
+    var type = partyType(role + "Type");
+    if (type === "fo") {
+      return {
+        type: "fo",
+        label: "fyzická osoba",
+        name: val(role + "_fo_name"),
+        lines: [
+          val(role + "_fo_dob") ? "dátum narodenia: " + fmtDate(val(role + "_fo_dob")) : "",
+          val(role + "_fo_address") ? "trvalý pobyt: " + val(role + "_fo_address") : ""
+        ].filter(Boolean)
+      };
+    }
+    if (type === "foe") {
+      return {
+        type: "foe",
+        label: "fyzická osoba – podnikateľ",
+        name: val(role + "_foe_name"),
+        lines: [
+          val(role + "_foe_address") ? "miesto podnikania: " + val(role + "_foe_address") : "",
+          val(role + "_foe_ico") ? "IČO: " + val(role + "_foe_ico") : "",
+          val(role + "_foe_reg") ? "zapísaný v: " + val(role + "_foe_reg") : ""
+        ].filter(Boolean)
+      };
+    }
+    return {
+      type: "po",
+      label: "právnická osoba",
+      name: val(role + "_po_name"),
+      lines: [
+        val(role + "_po_address") ? "sídlo: " + val(role + "_po_address") : "",
+        val(role + "_po_ico") ? "IČO: " + val(role + "_po_ico") : "",
+        val(role + "_po_reg") ? "zapísaná v: " + val(role + "_po_reg") : "",
+        val(role + "_po_rep") ? "v zastúpení: " + val(role + "_po_rep") : ""
+      ].filter(Boolean)
+    };
+  }
+
+  function buildDocHTML() {
+    var lender = partyData("lender");
+    var borrower = partyData("borrower");
+    var itemDesc = val("item_desc") || "………………………………………………………";
+    var accessories = val("item_accessories");
+    var condition = val("item_condition");
+    var value = val("item_value");
+    var durationDeterminate = document.querySelector('input[name="durationType"]:checked').value === "determinate";
+    var dateFrom = fmtDate(val("date_from"));
+    var dateTo = fmtDate(val("date_to"));
+    var purpose = val("purpose");
+    var place = val("place_handover");
+    var extra = val("extra_terms");
+    var copies = val("copies") || "2";
+    var signPlace = val("sign_place") || "………………………";
+    var signDate = fmtDate(val("sign_date")) || "………………………";
+
+    var durationText = durationDeterminate
+      ? "Vypožičiavateľ je oprávnený vec užívať odo dňa " + (dateFrom || "……………") + " do dňa " + (dateTo || "……………") + "."
+      : "Výpožička sa uzatvára na dobu neurčitú. Vypožičiavateľ je povinný vec vrátiť bez zbytočného odkladu na výzvu požičiavateľa, najneskôr do troch dní odo dňa, keď bol o vrátenie požiadaný, ak nebolo dohodnuté inak.";
+
+    function partyBlock(p) {
+      var html = '<p><strong>' + esc(p.name || "……………………………………………") + '</strong> (' + esc(p.label) + ')</p>';
+      if (p.lines.length) {
+        html += '<p>' + p.lines.map(esc).join(', ') + '</p>';
+      }
+      return '<div class="party-block">' + html + '</div>';
+    }
+
+    var articles = [];
+    var artNum = 0;
+    function roman(n) {
+      var map = ["I","II","III","IV","V","VI","VII","VIII","IX","X"];
+      return map[n - 1] || String(n);
+    }
+
+    artNum++;
+    articles.push({
+      title: "Čl. " + roman(artNum) + " – Zmluvné strany",
+      body: '<p><em>Požičiavateľ:</em></p>' + partyBlock(lender) +
+            '<p><em>Vypožičiavateľ:</em></p>' + partyBlock(borrower) +
+            '<p>(ďalej spolu len „zmluvné strany“)</p>'
+    });
+
+    artNum++;
+    var itemPara = '<p>Požičiavateľ touto zmluvou prenecháva vypožičiavateľovi bezplatne do dočasného užívania nasledovnú vec: <strong>' + esc(itemDesc) + '</strong>.</p>';
+    if (accessories) itemPara += '<p>Spolu s vecou sa vypožičiavateľovi odovzdáva aj toto príslušenstvo: ' + esc(accessories) + '.</p>';
+    if (condition) itemPara += '<p>Vec sa odovzdáva v tomto stave: ' + esc(condition) + '.</p>';
+    if (value) itemPara += '<p>Orientačná hodnota veci je ' + esc(value) + '.</p>';
+    itemPara += '<p>Vypožičiavateľ vyhlasuje, že sa s vecou pred jej prevzatím oboznámil a vec v uvedenom stave preberá.</p>';
+    articles.push({ title: "Čl. " + roman(artNum) + " – Predmet výpožičky", body: itemPara });
+
+    artNum++;
+    articles.push({
+      title: "Čl. " + roman(artNum) + " – Doba výpožičky",
+      body: '<p>' + durationText + '</p>'
+    });
+
+    artNum++;
+    var purposePara = '<p>Vypožičiavateľ je oprávnený vec užívať výlučne na dohodnutý účel' + (purpose ? ": " + esc(purpose) : "") + '.</p>';
+    articles.push({ title: "Čl. " + roman(artNum) + " – Účel užívania", body: purposePara });
+
+    artNum++;
+    var rightsBody =
+      '<p>Vypožičiavateľ je povinný vec užívať riadne a v súlade s jej určením a dohodnutým účelom.</p>' +
+      '<p>Vypožičiavateľ nie je oprávnený prenechať vec do užívania tretej osobe bez predchádzajúceho písomného súhlasu požičiavateľa.</p>' +
+      '<p>Vypožičiavateľ znáša náklady spojené s bežným užívaním veci. Náklady spojené s riadnym udržiavaním veci, ako aj škodu na nej vzniknutú, ak ju nespôsobil, hradí požičiavateľ.</p>' +
+      '<p>Vypožičiavateľ je povinný vrátiť vec po uplynutí dohodnutej doby výpožičky, prípadne po tom, čo vec dohodnutým spôsobom užíval, a to v stave, v akom ju prevzal, s prihliadnutím na obvyklé opotrebenie.</p>' +
+      (place ? '<p>Miesto odovzdania a vrátenia veci: ' + esc(place) + '.</p>' : '') +
+      '<p>Ak vypožičiavateľ užíva vec v rozpore s dohodnutým účelom alebo ju bez súhlasu požičiavateľa prenechá do užívania inému, má požičiavateľ právo domáhať sa vrátenia veci aj pred uplynutím dohodnutej doby.</p>';
+    articles.push({ title: "Čl. " + roman(artNum) + " – Práva a povinnosti zmluvných strán", body: rightsBody });
+
+    if (extra) {
+      artNum++;
+      var extraHtml = extra.split(/\n+/).filter(Boolean).map(function (line) {
+        return "<p>" + esc(line) + "</p>";
+      }).join("");
+      articles.push({ title: "Čl. " + roman(artNum) + " – Ďalšie dojednania", body: extraHtml });
+    }
+
+    artNum++;
+    var finalBody =
+      '<p>Táto zmluva sa vyhotovuje v ' + esc(copies) + ' vyhotoveniach, z ktorých každá zmluvná strana obdrží po podpise po jednom vyhotovení.</p>' +
+      '<p>Zmluva nadobúda platnosť a účinnosť dňom jej podpisu oboma zmluvnými stranami.</p>' +
+      '<p>Zmeny a doplnenia tejto zmluvy je možné vykonať len formou písomných a očíslovaných dodatkov podpísaných oboma zmluvnými stranami.</p>' +
+      '<p>Právne vzťahy touto zmluvou výslovne neupravené sa riadia príslušnými ustanoveniami Občianskeho zákonníka a ostatnými všeobecne záväznými právnymi predpismi platnými na území Slovenskej republiky.</p>' +
+      '<p>Zmluvné strany vyhlasujú, že si túto zmluvu pred jej podpisom prečítali, jej obsahu porozumeli, zmluva bola uzatvorená slobodne, vážne, určite a zrozumiteľne, nie v tiesni ani za nápadne nevýhodných podmienok, čo potvrdzujú svojimi podpismi.</p>';
+    articles.push({ title: "Čl. " + roman(artNum) + " – Záverečné ustanovenia", body: finalBody });
+
+    var articlesHtml = articles.map(function (a) {
+      return '<h3>' + esc(a.title) + '</h3>' + a.body;
+    }).join("");
+
+    var html =
+      '<h2>Zmluva o výpožičke</h2>' +
+      '<p class="doc-sub">uzatvorená podľa § 659 a nasl. zákona č. 40/1964 Zb. Občiansky zákonník v znení neskorších predpisov</p>' +
+      articlesHtml +
+      '<p>V ' + esc(signPlace) + ' dňa ' + esc(signDate) + '</p>' +
+      '<div class="sign-row">' +
+        '<div class="sign-col"><div class="sign-line">Požičiavateľ<br>' + esc(lender.name || "") + '</div></div>' +
+        '<div class="sign-col"><div class="sign-line">Vypožičiavateľ<br>' + esc(borrower.name || "") + '</div></div>' +
+      '</div>';
+
+    return html;
+  }
+
+  function renderPreview() {
+    var html = buildDocHTML();
+    $("preview").innerHTML = '<div class="doc">' + html + '</div>';
+    $("preview").classList.add("visible");
+    return html;
+  }
+
+  $("previewBtn").addEventListener("click", function () {
+    renderPreview();
+    $("preview").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  // Finds a near-blank pixel row close to idealY so page breaks avoid slicing through a text line.
+  function findBreakRow(ctx, width, idealY, searchWindow) {
+    var minY = Math.max(0, idealY - searchWindow);
+    for (var y = idealY; y >= minY; y--) {
+      var row = ctx.getImageData(0, y, width, 1).data;
+      var blank = true;
+      for (var i = 0; i < row.length; i += 32) {
+        if (row[i] < 250 || row[i + 1] < 250 || row[i + 2] < 250) { blank = false; break; }
+      }
+      if (blank) return y;
+    }
+    return idealY;
+  }
+
+  $("pdfBtn").addEventListener("click", function () {
+    renderPreview();
+
+    var btn = $("pdfBtn");
+    btn.disabled = true;
+    var originalText = btn.textContent;
+    btn.textContent = "Generujem PDF…";
+
+    function resetBtn() {
+      btn.disabled = false;
+      btn.textContent = originalText;
+    }
+
+    var jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+    if (!jsPDFCtor || !window.html2canvas) {
+      alert("Knižnica na export PDF sa nenačítala. Skontrolujte pripojenie na internet a skúste to znova.");
+      resetBtn();
+      return;
+    }
+
+    var source = $("preview").querySelector(".doc");
+
+    window.html2canvas(source, { scale: 2, useCORS: true, backgroundColor: "#ffffff" }).then(function (canvas) {
+      var pdf = new jsPDFCtor("p", "pt", "a4");
+      var pageWidth = pdf.internal.pageSize.getWidth();
+      var pageHeight = pdf.internal.pageSize.getHeight();
+      var margin = 36;
+      var contentWidthPt = pageWidth - margin * 2;
+      var pxPerPt = canvas.width / contentWidthPt;
+      var pageHeightPx = Math.floor((pageHeight - margin * 2) * pxPerPt);
+
+      var srcCtx = canvas.getContext("2d");
+      var renderedY = 0;
+      var first = true;
+
+      while (renderedY < canvas.height) {
+        var idealEnd = Math.min(renderedY + pageHeightPx, canvas.height);
+        var sliceEnd = idealEnd;
+        if (idealEnd < canvas.height) {
+          sliceEnd = findBreakRow(srcCtx, canvas.width, idealEnd, Math.min(60, pageHeightPx - 1));
+          if (sliceEnd <= renderedY) sliceEnd = idealEnd;
+        }
+        var sliceHeightPx = sliceEnd - renderedY;
+
+        var pageCanvas = document.createElement("canvas");
+        pageCanvas.width = canvas.width;
+        pageCanvas.height = sliceHeightPx;
+        var pctx = pageCanvas.getContext("2d");
+        pctx.fillStyle = "#ffffff";
+        pctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+        pctx.drawImage(canvas, 0, renderedY, canvas.width, sliceHeightPx, 0, 0, canvas.width, sliceHeightPx);
+
+        var imgData = pageCanvas.toDataURL("image/jpeg", 0.93);
+        if (!first) pdf.addPage();
+        var sliceHeightPt = sliceHeightPx / pxPerPt;
+        pdf.addImage(imgData, "JPEG", margin, margin, contentWidthPt, sliceHeightPt);
+
+        renderedY = sliceEnd;
+        first = false;
+      }
+
+      var lenderName = val("lender_fo_name") || val("lender_foe_name") || val("lender_po_name") || "zmluva";
+      var fname = "Zmluva_o_vypozicke_" + lenderName.replace(/\s+/g, "_") + ".pdf";
+      pdf.save(fname);
+      resetBtn();
+    }).catch(function (err) {
+      console.error(err);
+      alert("Pri generovaní PDF nastala chyba. Skúste to prosím znova.");
+      resetBtn();
+    });
+  });
+})();
+</script>
+</body>
+</html>
