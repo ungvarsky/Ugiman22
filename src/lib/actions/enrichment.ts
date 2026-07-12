@@ -66,7 +66,9 @@ export async function isOcrEnabled(): Promise<boolean> {
 const ocrResultSchema = z.object({
   vendorName: z.string().trim().min(1).optional(),
   invoiceNumber: z.string().trim().min(1).optional(),
-  amount: z.coerce.number().positive().optional(),
+  // Refund/return receipts print a negative total; take the magnitude since
+  // the invoice form itself only accepts positive amounts.
+  amount: z.coerce.number().refine((n) => n !== 0).transform(Math.abs).optional(),
   currency: z.string().trim().min(1).optional(),
   issueDate: z.string().trim().min(1).optional(),
 });
@@ -116,7 +118,8 @@ export async function extractInvoiceFromImage(
                 "Vráť IBA jeden JSON objekt (žiadny iný text, žiadne markdown bloky) s týmito poľami,",
                 "vynechaj polia, ktoré na obrázku nevieš s istotou nájsť:",
                 '{"vendorName": string, "invoiceNumber": string, "amount": number, "currency": "EUR"|"USD"|"CZK", "issueDate": "YYYY-MM-DD"}',
-                "amount je celková suma dokladu bez symbolu meny.",
+                "amount je celková suma dokladu bez symbolu meny, vždy ako kladné číslo",
+                "(aj keby bola na doklade uvedená ako záporná, napr. pri dobropise/vrátení tovaru).",
               ].join(" "),
             },
           ],

@@ -11,7 +11,9 @@ type QrState =
   | { status: "idle" }
   | { status: "scanning" }
   | { status: "found"; ico: string; companyName: string }
-  | { status: "not_found" };
+  | { status: "no_qr" }
+  | { status: "qr_no_ico" }
+  | { status: "ico_no_match"; ico: string };
 
 type OcrState = { status: "idle" | "loading" | "done" } | { status: "error"; message: string };
 
@@ -40,10 +42,14 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
     try {
       const qrText = await decodeQrFromImageFile(file);
       if (!qrText) {
-        setQrState({ status: "not_found" });
+        setQrState({ status: "no_qr" });
         return;
       }
       const icoCandidates = extractIcoCandidates(qrText);
+      if (icoCandidates.length === 0) {
+        setQrState({ status: "qr_no_ico" });
+        return;
+      }
       for (const ico of icoCandidates) {
         const company = await lookupCompanyByIco(ico);
         if (company) {
@@ -54,9 +60,9 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
           return;
         }
       }
-      setQrState({ status: "not_found" });
+      setQrState({ status: "ico_no_match", ico: icoCandidates[0] });
     } catch {
-      setQrState({ status: "not_found" });
+      setQrState({ status: "no_qr" });
     }
   }
 
@@ -131,8 +137,16 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
           ✅ Našiel som QR kód (IČO {qrState.ico}) — dodávateľ: <strong>{qrState.companyName}</strong> (doplnené z verejného registra)
         </p>
       )}
-      {qrState.status === "not_found" && (
-        <p className="text-xs text-slate-400">Na fotke sa nenašiel čitateľný QR kód s IČO firmy vo verejnom registri.</p>
+      {qrState.status === "no_qr" && (
+        <p className="text-xs text-slate-400">Na fotke sa nenašiel žiadny čitateľný QR kód.</p>
+      )}
+      {qrState.status === "qr_no_ico" && (
+        <p className="text-xs text-slate-400">Našiel som QR kód, ale nepodarilo sa z neho vytiahnuť IČO firmy.</p>
+      )}
+      {qrState.status === "ico_no_match" && (
+        <p className="text-xs text-slate-400">
+          Našiel som QR kód (IČO {qrState.ico}), ale firmu sa nepodarilo dohľadať vo verejnom registri — doplň dodávateľa ručne.
+        </p>
       )}
 
       {ocrEnabled && selectedFile?.type.startsWith("image/") && (
