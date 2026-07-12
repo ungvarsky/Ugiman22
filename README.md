@@ -20,6 +20,11 @@ the invoice amount (configurable per-amount-range approval rules).
 - Full audit trail / activity log per invoice
 - In-app notifications (bell dropdown), with optional email via SMTP
 - Admin pages to manage users/roles and approval rules
+- QR code scan on uploaded receipt photos: auto-detects the embedded IČO and
+  looks up the vendor name in the Slovak public business register (RPO)
+- Optional AI-powered "fill from photo" button (Claude vision) that reads an
+  uploaded invoice/receipt photo and pre-fills vendor, amount, date, and
+  invoice number
 
 ## Roles
 
@@ -80,3 +85,12 @@ the invoice amount (configurable per-amount-range approval rules).
   amount; make sure the configured ranges in Admin → Approval Rules cover the
   full amount space you expect, otherwise submission will be blocked with an
   error asking an admin to add a matching rule.
+- The AI "fill from photo" button only appears once `ANTHROPIC_API_KEY` is
+  set (get one at https://console.anthropic.com). Without it, invoices are
+  filled in manually as before.
+- The RPO (business register) lookup calls a public government API
+  (`api.statistics.sk`) that hasn't been smoke-tested against a live network
+  from this codebase's dev environment — if vendor auto-fill from QR codes
+  doesn't work after deploying, check the response shape returned by that API
+  and adjust `lookupCompanyByIco` in `src/lib/actions/enrichment.ts`
+  accordingly.
