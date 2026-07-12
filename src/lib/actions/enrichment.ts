@@ -78,6 +78,19 @@ export async function isOcrEnabled(): Promise<boolean> {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+const ocrItemSchema = z.object({
+  name: z.string().trim().min(1),
+  quantity: z.coerce.number().optional(),
+  unitPrice: z.coerce.number().optional(),
+  totalPrice: z.coerce.number().optional(),
+});
+
+const ocrVatLineSchema = z.object({
+  ratePercent: z.coerce.number().optional(),
+  base: z.coerce.number().optional(),
+  vat: z.coerce.number().optional(),
+});
+
 const ocrResultSchema = z.object({
   vendorName: z.string().trim().min(1).optional(),
   vendorIco: z.string().trim().min(1).optional(),
@@ -90,6 +103,8 @@ const ocrResultSchema = z.object({
   amount: z.coerce.number().refine((n) => n !== 0).transform(Math.abs).optional(),
   currency: z.string().trim().min(1).optional(),
   issueDate: z.string().trim().min(1).optional(),
+  items: z.array(ocrItemSchema).optional(),
+  vatBreakdown: z.array(ocrVatLineSchema).optional(),
 });
 
 export type OcrExtractedInvoice = z.infer<typeof ocrResultSchema>;
@@ -136,11 +151,14 @@ export async function extractInvoiceFromImage(
                 "Toto je faktúra alebo pokladničný doklad, možno v slovenčine.",
                 "Vráť IBA jeden JSON objekt (žiadny iný text, žiadne markdown bloky) s týmito poľami,",
                 "vynechaj polia, ktoré na obrázku nevieš s istotou nájsť:",
-                '{"vendorName": string, "vendorIco": string, "vendorDic": string, "vendorIcDph": string, "vendorAddress": string, "invoiceNumber": string, "amount": number, "currency": "EUR"|"USD"|"CZK", "issueDate": "YYYY-MM-DD"}',
+                '{"vendorName": string, "vendorIco": string, "vendorDic": string, "vendorIcDph": string, "vendorAddress": string, "invoiceNumber": string, "amount": number, "currency": "EUR"|"USD"|"CZK", "issueDate": "YYYY-MM-DD",',
+                '"items": [{"name": string, "quantity": number, "unitPrice": number, "totalPrice": number}],',
+                '"vatBreakdown": [{"ratePercent": number, "base": number, "vat": number}]}',
                 "vendorIco je IČO dodávateľa (8-miestne číslo), vendorDic je DIČ, vendorIcDph je IČ DPH",
                 "(zvyčajne v tvare SK + 10 číslic, ak je uvedené), vendorAddress je celá adresa dodávateľa ako jeden text.",
                 "amount je celková suma dokladu bez symbolu meny, vždy ako kladné číslo",
                 "(aj keby bola na doklade uvedená ako záporná, napr. pri dobropise/vrátení tovaru).",
+                "items je zoznam položiek z dokladu (ak je viditeľný), vatBreakdown je rozpis DPH podľa sadzby (ak je viditeľný).",
               ].join(" "),
             },
           ],
