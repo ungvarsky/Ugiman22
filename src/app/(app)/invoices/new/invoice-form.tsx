@@ -11,7 +11,9 @@ type QrState =
   | { status: "idle" }
   | { status: "scanning" }
   | { status: "found"; ico: string; companyName: string }
-  | { status: "not_found" };
+  | { status: "no_qr" }
+  | { status: "qr_no_ico" }
+  | { status: "ico_no_match"; ico: string };
 
 type OcrState = { status: "idle" | "loading" | "done" } | { status: "error"; message: string };
 
@@ -24,6 +26,10 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
 
   const invoiceNumberRef = useRef<HTMLInputElement>(null);
   const vendorNameRef = useRef<HTMLInputElement>(null);
+  const vendorIcoRef = useRef<HTMLInputElement>(null);
+  const vendorDicRef = useRef<HTMLInputElement>(null);
+  const vendorIcDphRef = useRef<HTMLInputElement>(null);
+  const vendorAddressRef = useRef<HTMLInputElement>(null);
   const amountRef = useRef<HTMLInputElement>(null);
   const currencyRef = useRef<HTMLSelectElement>(null);
   const issueDateRef = useRef<HTMLInputElement>(null);
@@ -40,10 +46,14 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
     try {
       const qrText = await decodeQrFromImageFile(file);
       if (!qrText) {
-        setQrState({ status: "not_found" });
+        setQrState({ status: "no_qr" });
         return;
       }
       const icoCandidates = extractIcoCandidates(qrText);
+      if (icoCandidates.length === 0) {
+        setQrState({ status: "qr_no_ico" });
+        return;
+      }
       for (const ico of icoCandidates) {
         const company = await lookupCompanyByIco(ico);
         if (company) {
@@ -51,12 +61,27 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
           if (vendorNameRef.current && !vendorNameRef.current.value) {
             vendorNameRef.current.value = company.name;
           }
+          if (vendorIcoRef.current && !vendorIcoRef.current.value) {
+            vendorIcoRef.current.value = company.ico;
+          }
+          if (company.dic && vendorDicRef.current && !vendorDicRef.current.value) {
+            vendorDicRef.current.value = company.dic;
+          }
+          if (company.icDph && vendorIcDphRef.current && !vendorIcDphRef.current.value) {
+            vendorIcDphRef.current.value = company.icDph;
+          }
+          if (company.address && vendorAddressRef.current && !vendorAddressRef.current.value) {
+            vendorAddressRef.current.value = company.address;
+          }
           return;
         }
       }
-      setQrState({ status: "not_found" });
+      setQrState({ status: "ico_no_match", ico: icoCandidates[0] });
+      if (vendorIcoRef.current && !vendorIcoRef.current.value) {
+        vendorIcoRef.current.value = icoCandidates[0];
+      }
     } catch {
-      setQrState({ status: "not_found" });
+      setQrState({ status: "no_qr" });
     }
   }
 
@@ -74,6 +99,10 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
         const { data } = result;
         if (data.invoiceNumber && invoiceNumberRef.current) invoiceNumberRef.current.value = data.invoiceNumber;
         if (data.vendorName && vendorNameRef.current) vendorNameRef.current.value = data.vendorName;
+        if (data.vendorIco && vendorIcoRef.current) vendorIcoRef.current.value = data.vendorIco;
+        if (data.vendorDic && vendorDicRef.current) vendorDicRef.current.value = data.vendorDic;
+        if (data.vendorIcDph && vendorIcDphRef.current) vendorIcDphRef.current.value = data.vendorIcDph;
+        if (data.vendorAddress && vendorAddressRef.current) vendorAddressRef.current.value = data.vendorAddress;
         if (data.amount && amountRef.current) amountRef.current.value = String(data.amount);
         if (data.currency && currencyRef.current) currencyRef.current.value = data.currency;
         if (data.issueDate && issueDateRef.current) issueDateRef.current.value = data.issueDate;
@@ -92,6 +121,18 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
         </Field>
         <Field label="Vendor" name="vendorName" error={state?.fieldErrors?.vendorName}>
           <input ref={vendorNameRef} name="vendorName" required className="input" />
+        </Field>
+        <Field label="IČO (optional)" name="vendorIco">
+          <input ref={vendorIcoRef} name="vendorIco" className="input" />
+        </Field>
+        <Field label="DIČ (optional)" name="vendorDic">
+          <input ref={vendorDicRef} name="vendorDic" className="input" />
+        </Field>
+        <Field label="IČ DPH (optional)" name="vendorIcDph">
+          <input ref={vendorIcDphRef} name="vendorIcDph" className="input" />
+        </Field>
+        <Field label="Adresa dodávateľa (optional)" name="vendorAddress">
+          <input ref={vendorAddressRef} name="vendorAddress" className="input" />
         </Field>
         <Field label="Amount" name="amount" error={state?.fieldErrors?.amount}>
           <input ref={amountRef} name="amount" type="number" step="0.01" min="0.01" required className="input" />
@@ -131,8 +172,16 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
           ✅ Našiel som QR kód (IČO {qrState.ico}) — dodávateľ: <strong>{qrState.companyName}</strong> (doplnené z verejného registra)
         </p>
       )}
-      {qrState.status === "not_found" && (
-        <p className="text-xs text-slate-400">Na fotke sa nenašiel čitateľný QR kód s IČO firmy vo verejnom registri.</p>
+      {qrState.status === "no_qr" && (
+        <p className="text-xs text-slate-400">Na fotke sa nenašiel žiadny čitateľný QR kód.</p>
+      )}
+      {qrState.status === "qr_no_ico" && (
+        <p className="text-xs text-slate-400">Našiel som QR kód, ale nepodarilo sa z neho vytiahnuť IČO firmy.</p>
+      )}
+      {qrState.status === "ico_no_match" && (
+        <p className="text-xs text-slate-400">
+          Našiel som QR kód (IČO {qrState.ico}) — doplnil som IČO, ale firmu sa nepodarilo dohľadať vo verejnom registri, ostatné polia doplň ručne.
+        </p>
       )}
 
       {ocrEnabled && selectedFile?.type.startsWith("image/") && (
