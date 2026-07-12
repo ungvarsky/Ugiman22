@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Unrelated static project sharing this repo (see claude/contract-loan-form-pdf-2r7j3r):
+    "vendor/**",
+    "index.html",
   ]),
 ]);
 
