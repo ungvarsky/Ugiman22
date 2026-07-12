@@ -8,148 +8,91 @@ datasource db {
 }
 
 enum Role {
-  EMPLOYEE
-  MANAGER
-  FINANCE
-  DIRECTOR
-  ADMIN
+  TRAINER
+  CLIENT
 }
 
-enum InvoiceStatus {
-  DRAFT
-  PENDING
-  APPROVED
-  REJECTED
+enum SessionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
 }
 
-enum ApprovalStepStatus {
-  WAITING
-  PENDING
-  APPROVED
-  REJECTED
-  SKIPPED
-}
-
-enum NotificationType {
-  INVOICE_SUBMITTED
-  APPROVAL_REQUESTED
-  INVOICE_APPROVED
-  INVOICE_REJECTED
-  STEP_APPROVED
-  STEP_REJECTED
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  CARD
+  OTHER
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  passwordHash  String
-  role          Role      @default(EMPLOYEE)
-  active        Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  passwordHash String
+  role         Role     @default(CLIENT)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  invoicesSubmitted Invoice[]          @relation("InvoiceSubmitter")
-  approvalSteps     InvoiceApproval[]  @relation("Approver")
-  activityLogs      ActivityLog[]
-  notifications     Notification[]
+  packages TrainingPackage[]
+  sessions TrainingSession[]
+  payments Payment[]
+
+  @@index([role])
 }
 
-model ApprovalThreshold {
-  id          String   @id @default(cuid())
-  name        String
-  minAmount   Decimal  @db.Decimal(14, 2)
-  maxAmount   Decimal? @db.Decimal(14, 2)
-  currency    String   @default("EUR")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model TrainingPackage {
+  id               String   @id @default(cuid())
+  clientId         String
+  client           User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  name             String
+  totalCredits     Int
+  remainingCredits Int
+  price            Decimal  @db.Decimal(10, 2)
+  currency         String   @default("EUR")
+  purchasedAt      DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  levels   ApprovalLevel[]
-  invoices Invoice[]
+  sessions TrainingSession[]
+  payments Payment[]
 
-  @@index([minAmount, maxAmount])
+  @@index([clientId])
 }
 
-model ApprovalLevel {
-  id          String   @id @default(cuid())
-  thresholdId String
-  threshold   ApprovalThreshold @relation(fields: [thresholdId], references: [id], onDelete: Cascade)
-  order       Int
-  role        Role
+model TrainingSession {
+  id        String        @id @default(cuid())
+  clientId  String
+  client    User          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  packageId String?
+  package   TrainingPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  title     String?
+  note      String?
+  startTime DateTime
+  endTime   DateTime
+  status    SessionStatus @default(SCHEDULED)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 
-  @@unique([thresholdId, order])
+  @@index([clientId, startTime])
+  @@index([startTime])
 }
 
-model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String
-  vendorName    String
-  vendorIco     String?
-  vendorDic     String?
-  vendorIcDph   String?
-  vendorAddress String?
-  amount        Decimal       @db.Decimal(14, 2)
-  currency      String        @default("EUR")
-  issueDate     DateTime
-  dueDate       DateTime?
-  description   String?
-  fileUrl       String?
-  fileName      String?
-  status        InvoiceStatus @default(DRAFT)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+model Payment {
+  id        String        @id @default(cuid())
+  clientId  String
+  client    User          @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  packageId String?
+  package   TrainingPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  amount    Decimal       @db.Decimal(10, 2)
+  currency  String        @default("EUR")
+  method    PaymentMethod @default(CASH)
+  note      String?
+  paidAt    DateTime      @default(now())
+  createdAt DateTime      @default(now())
 
-  submittedById String
-  submittedBy   User   @relation("InvoiceSubmitter", fields: [submittedById], references: [id])
-
-  thresholdId String?
-  threshold   ApprovalThreshold? @relation(fields: [thresholdId], references: [id])
-
-  approvals    InvoiceApproval[]
-  activityLogs ActivityLog[]
-
-  @@index([status])
-  @@index([submittedById])
-}
-
-model InvoiceApproval {
-  id         String              @id @default(cuid())
-  invoiceId  String
-  invoice    Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  order      Int
-  role       Role
-  status     ApprovalStepStatus  @default(WAITING)
-  comment    String?
-  actedAt    DateTime?
-
-  approverId String?
-  approver   User? @relation("Approver", fields: [approverId], references: [id])
-
-  @@unique([invoiceId, order])
-}
-
-model ActivityLog {
-  id        String   @id @default(cuid())
-  invoiceId String
-  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  action    String
-  meta      String?
-  createdAt DateTime @default(now())
-
-  @@index([invoiceId])
-}
-
-model Notification {
-  id        String           @id @default(cuid())
-  userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      NotificationType
-  message   String
-  link      String?
-  read      Boolean          @default(false)
-  createdAt DateTime         @default(now())
-
-  @@index([userId, read])
+  @@index([clientId, paidAt])
 }

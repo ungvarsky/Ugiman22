@@ -9,9 +9,9 @@ export async function requireSession() {
   return session;
 }
 
-export async function requireAdmin() {
+export async function requireTrainer() {
   const session = await requireSession();
-  if (session.user.role !== "ADMIN") {
+  if (session.user.role !== "TRAINER") {
     redirect("/");
   }
   return session;
