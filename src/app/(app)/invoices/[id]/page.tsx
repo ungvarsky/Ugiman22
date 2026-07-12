@@ -54,6 +54,15 @@ export default async function InvoiceDetailPage({
             value={invoice.dueDate ? invoice.dueDate.toLocaleDateString() : "—"}
           />
           <Detail label="Approval rule" value={invoice.threshold?.name ?? "—"} />
+          {invoice.vendorIco && <Detail label="IČO" value={invoice.vendorIco} />}
+          {invoice.vendorDic && <Detail label="DIČ" value={invoice.vendorDic} />}
+          {invoice.vendorIcDph && <Detail label="IČ DPH" value={invoice.vendorIcDph} />}
+          {invoice.vendorAddress && (
+            <div className="col-span-full">
+              <dt className="text-xs uppercase text-slate-400">Adresa dodávateľa</dt>
+              <dd className="text-slate-700">{invoice.vendorAddress}</dd>
+            </div>
+          )}
           {invoice.description && (
             <div className="col-span-full">
               <dt className="text-xs uppercase text-slate-400">Description</dt>

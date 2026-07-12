@@ -6,8 +6,19 @@ import { requireSession } from "@/lib/session";
 
 export type CompanyLookupResult = {
   name: string;
+  ico: string;
+  dic?: string;
+  icDph?: string;
   address?: string;
 };
+
+/** Finds an identifier value in RPO's `identifiers` array by matching its `type` against a keyword. */
+function findIdentifier(
+  identifiers: Array<{ value?: string; type?: string }> | undefined,
+  keyword: string
+): string | undefined {
+  return identifiers?.find((i) => i.type?.toLowerCase().includes(keyword))?.value;
+}
 
 /**
  * Looks up a company by IČO in the Slovak public business register (RPO,
@@ -51,7 +62,11 @@ export async function lookupCompanyByIco(ico: string): Promise<CompanyLookupResu
       addressEntry?.formattedAddress ??
       (typeof addressEntry === "string" ? addressEntry : undefined);
 
-    return { name, address };
+    const dic = findIdentifier(entity.identifiers, "dic") ?? entity.dic;
+    const icDph =
+      findIdentifier(entity.identifiers, "dph") ?? entity.icDph ?? entity.ic_dph;
+
+    return { name, ico, dic, icDph, address };
   } catch {
     return null;
   } finally {
@@ -65,6 +80,10 @@ export async function isOcrEnabled(): Promise<boolean> {
 
 const ocrResultSchema = z.object({
   vendorName: z.string().trim().min(1).optional(),
+  vendorIco: z.string().trim().min(1).optional(),
+  vendorDic: z.string().trim().min(1).optional(),
+  vendorIcDph: z.string().trim().min(1).optional(),
+  vendorAddress: z.string().trim().min(1).optional(),
   invoiceNumber: z.string().trim().min(1).optional(),
   // Refund/return receipts print a negative total; take the magnitude since
   // the invoice form itself only accepts positive amounts.
@@ -117,7 +136,9 @@ export async function extractInvoiceFromImage(
                 "Toto je faktúra alebo pokladničný doklad, možno v slovenčine.",
                 "Vráť IBA jeden JSON objekt (žiadny iný text, žiadne markdown bloky) s týmito poľami,",
                 "vynechaj polia, ktoré na obrázku nevieš s istotou nájsť:",
-                '{"vendorName": string, "invoiceNumber": string, "amount": number, "currency": "EUR"|"USD"|"CZK", "issueDate": "YYYY-MM-DD"}',
+                '{"vendorName": string, "vendorIco": string, "vendorDic": string, "vendorIcDph": string, "vendorAddress": string, "invoiceNumber": string, "amount": number, "currency": "EUR"|"USD"|"CZK", "issueDate": "YYYY-MM-DD"}',
+                "vendorIco je IČO dodávateľa (8-miestne číslo), vendorDic je DIČ, vendorIcDph je IČ DPH",
+                "(zvyčajne v tvare SK + 10 číslic, ak je uvedené), vendorAddress je celá adresa dodávateľa ako jeden text.",
                 "amount je celková suma dokladu bez symbolu meny, vždy ako kladné číslo",
                 "(aj keby bola na doklade uvedená ako záporná, napr. pri dobropise/vrátení tovaru).",
               ].join(" "),

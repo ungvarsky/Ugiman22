@@ -21,6 +21,10 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const invoiceSchema = z.object({
   invoiceNumber: z.string().trim().min(1, "Invoice number is required"),
   vendorName: z.string().trim().min(1, "Vendor name is required"),
+  vendorIco: z.string().trim().optional(),
+  vendorDic: z.string().trim().optional(),
+  vendorIcDph: z.string().trim().optional(),
+  vendorAddress: z.string().trim().optional(),
   amount: z.coerce.number().positive("Amount must be greater than zero"),
   currency: z.string().trim().min(1).default("EUR"),
   issueDate: z.string().min(1, "Issue date is required"),
@@ -63,6 +67,10 @@ export async function createInvoice(
   const raw = {
     invoiceNumber: formData.get("invoiceNumber"),
     vendorName: formData.get("vendorName"),
+    vendorIco: formData.get("vendorIco") || undefined,
+    vendorDic: formData.get("vendorDic") || undefined,
+    vendorIcDph: formData.get("vendorIcDph") || undefined,
+    vendorAddress: formData.get("vendorAddress") || undefined,
     amount: formData.get("amount"),
     currency: formData.get("currency") || "EUR",
     issueDate: formData.get("issueDate"),
@@ -93,6 +101,10 @@ export async function createInvoice(
     data: {
       invoiceNumber: parsed.data.invoiceNumber,
       vendorName: parsed.data.vendorName,
+      vendorIco: parsed.data.vendorIco,
+      vendorDic: parsed.data.vendorDic,
+      vendorIcDph: parsed.data.vendorIcDph,
+      vendorAddress: parsed.data.vendorAddress,
       amount: parsed.data.amount,
       currency: parsed.data.currency,
       issueDate: new Date(parsed.data.issueDate),
