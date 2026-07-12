@@ -2,7 +2,11 @@
 
 import { useActionState, useRef, useState, useTransition } from "react";
 import { createInvoice, type InvoiceFormState } from "@/lib/actions/invoices";
-import { lookupCompanyByIco, extractInvoiceFromImage } from "@/lib/actions/enrichment";
+import {
+  lookupCompanyByIco,
+  extractInvoiceFromImage,
+  type OcrExtractedInvoice,
+} from "@/lib/actions/enrichment";
 import { decodeQrFromImageFile, extractIcoCandidates, fileToBase64 } from "@/lib/qr-scan";
 
 const initialState: InvoiceFormState = {};
@@ -33,6 +37,7 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
   const amountRef = useRef<HTMLInputElement>(null);
   const currencyRef = useRef<HTMLSelectElement>(null);
   const issueDateRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -106,6 +111,10 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
         if (data.amount && amountRef.current) amountRef.current.value = String(data.amount);
         if (data.currency && currencyRef.current) currencyRef.current.value = data.currency;
         if (data.issueDate && issueDateRef.current) issueDateRef.current.value = data.issueDate;
+        const details = formatItemsAndVat(data.items, data.vatBreakdown);
+        if (details && descriptionRef.current && !descriptionRef.current.value) {
+          descriptionRef.current.value = details;
+        }
         setOcrState({ status: "done" });
       } catch {
         setOcrState({ status: "error", message: "Spracovanie obrázka zlyhalo." });
@@ -152,7 +161,7 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
         </Field>
       </div>
       <Field label="Description (optional)" name="description">
-        <textarea name="description" rows={3} className="input" />
+        <textarea ref={descriptionRef} name="description" rows={3} className="input" />
       </Field>
       <Field label="Attachment (PDF, PNG, JPG — optional)" name="attachment">
         <input
@@ -219,6 +228,36 @@ export function NewInvoiceForm({ ocrEnabled }: { ocrEnabled: boolean }) {
       </button>
     </form>
   );
+}
+
+function formatItemsAndVat(
+  items: OcrExtractedInvoice["items"],
+  vatBreakdown: OcrExtractedInvoice["vatBreakdown"]
+): string | null {
+  const parts: string[] = [];
+
+  if (items?.length) {
+    parts.push("Položky:");
+    for (const item of items) {
+      const qty = item.quantity ?? 1;
+      const unit = item.unitPrice !== undefined ? ` × ${item.unitPrice}` : "";
+      const total = item.totalPrice !== undefined ? ` = ${item.totalPrice}` : "";
+      parts.push(`- ${item.name}: ${qty} ks${unit}${total}`);
+    }
+  }
+
+  if (vatBreakdown?.length) {
+    if (parts.length) parts.push("");
+    parts.push("DPH:");
+    for (const line of vatBreakdown) {
+      const rate = line.ratePercent !== undefined ? `${line.ratePercent}%` : "?%";
+      const base = line.base !== undefined ? `, základ ${line.base}` : "";
+      const vat = line.vat !== undefined ? `, DPH ${line.vat}` : "";
+      parts.push(`- ${rate}${base}${vat}`);
+    }
+  }
+
+  return parts.length ? parts.join("\n") : null;
 }
 
 function Field({
