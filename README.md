@@ -76,9 +76,12 @@ the invoice amount (configurable per-amount-range approval rules).
 
 ## Notes
 
-- Invoice attachments are stored on local disk under `public/uploads`. For a
-  production deployment behind a serverless/ephemeral filesystem, swap this
-  for an object storage service (e.g. S3-compatible storage).
+- Invoice attachments are stored in Vercel Blob storage when
+  `BLOB_READ_WRITE_TOKEN` is set (enable "Blob" storage on the Vercel project
+  and it's added automatically) — **required in production**, since
+  serverless deployments don't have a writable/persistent disk. Without it,
+  uploads fall back to local disk under `public/uploads`, which only works
+  for local development.
 - Email notifications are only sent if `SMTP_HOST` is set in `.env`; otherwise
   only in-app notifications are created.
 - Approval rules are matched by amount range against the invoice's currency

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { randomUUID } from "crypto";
 import path from "path";
 import { mkdir, writeFile } from "fs/promises";
+import { put } from "@vercel/blob";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/session";
 import { submitInvoiceForApproval, actOnApprovalStep, ApprovalError } from "@/lib/approval";
@@ -47,11 +48,19 @@ async function saveUploadedFile(file: File): Promise<{ fileUrl: string; fileName
     throw new Error("File is too large. Maximum size is 10MB.");
   }
 
-  const uploadsDir = path.join(process.cwd(), "public", "uploads");
-  await mkdir(uploadsDir, { recursive: true });
-
   const ext = path.extname(file.name) || "";
   const safeName = `${randomUUID()}${ext}`;
+
+  // Vercel's serverless functions have a read-only filesystem (except /tmp),
+  // so uploads go to Vercel Blob storage when configured; local dev without
+  // it falls back to writing into public/uploads.
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const blob = await put(`uploads/${safeName}`, file, { access: "public" });
+    return { fileUrl: blob.url, fileName: file.name };
+  }
+
+  const uploadsDir = path.join(process.cwd(), "public", "uploads");
+  await mkdir(uploadsDir, { recursive: true });
   const buffer = Buffer.from(await file.arrayBuffer());
   await writeFile(path.join(uploadsDir, safeName), buffer);
 
